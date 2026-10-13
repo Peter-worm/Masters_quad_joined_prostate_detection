@@ -1,0 +1,19 @@
+# Raw and processed datasets; keep directory placeholders only
+/data/**
+!/data/raw/
+!/data/raw/.gitkeep
+!/data/processed/
+!/data/processed/.gitkeep
+
+# Trained models and checkpoints
+/models/**
+!/models/saved_weights/
+!/models/saved_weights/.gitkeep
+
+# Python environments and generated files
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
