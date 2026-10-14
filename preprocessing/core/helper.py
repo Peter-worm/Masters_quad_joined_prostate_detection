@@ -1,8 +1,8 @@
 import SimpleITK as sitk
 import numpy as np
-from core.file_manager import preprocess_file_manager
+from .file_manager import preprocess_file_manager
 from pathlib import Path
-from core.transformers.preprocessing_transformer import preprocessing_transformer
+from .transformers.preprocessing_transformer import preprocessing_transformer
 
 def register_and_resample(moving, reference, interpolator=sitk.sitkLinear):
     """Register moving image to reference and resample."""

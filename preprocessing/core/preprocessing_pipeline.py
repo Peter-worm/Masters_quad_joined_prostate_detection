@@ -4,15 +4,15 @@ import math
 import random
 from pathlib import Path
 
-from core.file_manager import preprocess_file_manager
-from core.helper import copy_NiFty, patients_transform
-from core.transformers.crop_transformer import non_weighted_crop_transformer
-from core.transformers.masks_fill_transformer import masks_fill_transformer
-from core.transformers.nifti_to_raw_transformer import nifti_to_raw_transformer
-from core.transformers.normalizers.min_max_normalizer_transformer import min_max_normalizer_transformer
-from core.transformers.normalizers.z_score_normalizer_transformer import z_score_normalizer_transformer
-from core.transformers.resample_transformer import resample_transformer
-from core.train_test_splitter import split_patient_ids
+from .file_manager import preprocess_file_manager
+from .helper import copy_NiFty, patients_transform
+from .transformers.crop_transformer import non_weighted_crop_transformer
+from .transformers.masks_fill_transformer import masks_fill_transformer
+from .transformers.nifti_to_raw_transformer import nifti_to_raw_transformer
+from .transformers.normalizers.min_max_normalizer_transformer import min_max_normalizer_transformer
+from .transformers.normalizers.z_score_normalizer_transformer import z_score_normalizer_transformer
+from .transformers.resample_transformer import resample_transformer
+from .train_test_splitter import split_patient_ids
 
 
 def run_preprocessing_pipeline(
