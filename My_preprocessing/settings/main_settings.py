@@ -18,9 +18,9 @@ class test_settings:
 
         self.preprocessing_steps_list = [
             ('start', 'nifty'),
+            ('resampling','resampled'),
             ('min_max_normalization', 'min_max_normalized'),
             ('z_score_normalization', 'z_score_normalized'),
-            ('resampling','resampled'),
             ('nifti_to_raw', 'raw'),
             ('filling_anatomy_gaps', 'anatomy_gap_filled'),
             ('cropping', 'cropped'),
@@ -35,6 +35,7 @@ class test_settings:
 
         self.crop_size = (160,160,24)
         self.target_spacing=(0.8, 0.8, 3.5)
+        self.reference_channel = 't2'
 
     def get_setting_dictionary(self):
         return {
@@ -46,6 +47,7 @@ class test_settings:
             'preprocessed_steps': self.preprocessed_steps,
             'crop_size': self.crop_size,
             'target_spacing': self.target_spacing,
+            'reference_channel': self.reference_channel,
             'z_score_channels_to_normalize': self.z_score_channels_to_normalize,
             'min_max_channels_to_normalize': self.max_min_channels_to_normalize,
             'mask_channel': self.mask_channel

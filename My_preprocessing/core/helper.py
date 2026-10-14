@@ -68,6 +68,9 @@ def patients_transform(file_manager: preprocess_file_manager,start_step,end_step
     for patient in patients:
         patient_data = file_manager.load_file(start_step,patient)
         data_transformed = transformer.execute(patient_data)
+        mask_summaries = getattr(transformer, "last_mask_resampling_summary", None)
+        if mask_summaries:
+            print(f"Mask resampling summary for {patient}: {mask_summaries}")
         file_manager.save_file(end_step,patient,data_transformed)
 
 def transform_step_list_to_dictioanry(preprocessing_steps_list):

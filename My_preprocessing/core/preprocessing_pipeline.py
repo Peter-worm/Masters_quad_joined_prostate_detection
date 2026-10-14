@@ -44,6 +44,7 @@ def run_preprocessing_pipeline(
             target_spacing=settings["target_spacing"],
             crop_size=settings["crop_size"],
             channels=channels,
+            reference_channel=settings.get("reference_channel", "t2"),
         )
 
     if preprocessed_steps.get("nifti_to_raw"):
