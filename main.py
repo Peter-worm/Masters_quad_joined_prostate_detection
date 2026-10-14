@@ -3,6 +3,7 @@
 from src.config import BASE_DIR, IN_COLAB, PROCESSED_DATA_DIR, RAW_DATA_DIR, SAVED_WEIGHTS_DIR
 
 
+
 def main() -> None:
     print(f"Project directory: {BASE_DIR}")
     print(f"Colab environment: {'yes' if IN_COLAB else 'no'}")
@@ -12,5 +13,6 @@ def main() -> None:
     print("Complete src/data and src/models to start training.")
 
 
+from src.models.train import train
 if __name__ == "__main__":
-    main()
+    train()
