@@ -41,7 +41,10 @@ class preprocess_file_manager:
         return data
 
     def save_file_pickle(self, step, patient_id, data):
-        path = os.path.join(self.main_folder, step, f"{patient_id}.pkl")
+        if step !=  None:
+            path = os.path.join(self.main_folder, step, f"{patient_id}.pkl")
+        else:
+            path = os.path.join(self.main_folder, f"{patient_id}.pkl")
         
         os.makedirs(os.path.dirname(path), exist_ok=True)
 
@@ -68,7 +71,10 @@ class preprocess_file_manager:
         return scikit_images
 
     def save_file_Nifty(self, step, patient_id, data):
-        data_path = os.path.join(self.main_folder, step)
+        if step !=  None:
+            data_path = os.path.join(self.main_folder, step)
+        else:
+            data_path = self.main_folder
         self.save_file_Nifty_external(data_path, patient_id, data, self.channels)
 
 

@@ -136,7 +136,6 @@ def run_preprocessing_pipeline(
                 print(f"[{split_name or 'all'}] Finished step: {step}")
             continue
 
-        output_step = preprocessed_steps[preprocessing_steps[-1][0]]["end"]
         for patient in split_patients:
             print(f"[{split_name or 'all'}] Preprocessing patient: {patient}")
             patient_data = split_file_manager.load_file_NiFty_external(
@@ -156,9 +155,9 @@ def run_preprocessing_pipeline(
                 if mask_summaries:
                     print(f"Mask resampling summary for {patient}: {mask_summaries}")
 
-            split_file_manager.save_file(output_step, patient, patient_data)
+            split_file_manager.save_file(None, patient, patient_data)
             del patient_data
 
         print(
-            f"Saved {split_name or 'all'} preprocessing output to step: {output_step}"
+            f"Saved {split_name or 'all'} preprocessing output"
         )
