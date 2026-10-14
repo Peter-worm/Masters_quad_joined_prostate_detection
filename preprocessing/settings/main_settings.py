@@ -1,8 +1,14 @@
+import sys
 from core.helper import transform_step_list_to_dictioanry
 
 class test_settings:
     def __init__(self):
-        self.original_data_folder =  '/home/robakp/Exeriments1/prostate_lesion_detection/rjozwiak-MGR_dataset_correct/MGR_dataset_correct'
+        if 'google.colab' in sys.modules:
+            self.original_data_folder = '/content/drive/MyDrive/MGR_dataset_correct' 
+            self.preprocessed_data_path = '/content/drive/MyDrive/Master_Thesis/Masters_quad_joined_prostate_detection/data/processed'
+        else:
+            self.original_data_folder = '/home/robakp/Exeriments1/prostate_lesion_detection/rjozwiak-MGR_dataset_correct/MGR_dataset_correct'
+            self.preprocessed_data_path = '/home/robakp/Exeriments1/separate_prostate_detection_training/data/processed'
 
         self.target = 'lesion'
 
@@ -24,7 +30,6 @@ class test_settings:
             ('nifti_to_raw', 'raw'),
             ('filling_anatomy_gaps', 'anatomy_gap_filled'),
             ('cropping', 'cropped'),
-
         ]
 
         self.preprocessed_steps = transform_step_list_to_dictioanry(self.preprocessing_steps_list)
@@ -58,5 +63,6 @@ class test_settings:
             'split_seed': self.split_seed,
             'z_score_channels_to_normalize': self.z_score_channels_to_normalize,
             'min_max_channels_to_normalize': self.max_min_channels_to_normalize,
-            'mask_channel': self.mask_channel
+            'mask_channel': self.mask_channel,
+            'preprocessed_data_path': self.preprocessed_data_path
         }
