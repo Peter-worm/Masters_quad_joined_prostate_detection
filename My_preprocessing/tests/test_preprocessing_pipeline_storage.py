@@ -28,6 +28,7 @@ class PreprocessingPipelineStorageTests(unittest.TestCase):
             "original_data_folder": "/unused/source",
             "channels": {"t2": "t2"},
             "save_intermediate_steps": False,
+            "create_train_test_split": False,
             "preprocessing_steps_list": [
                 ("start", "nifty"),
                 ("nifti_to_raw", "raw"),

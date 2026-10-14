@@ -21,6 +21,12 @@ For a PyTorch installation tailored to your GPU, use the installer selector on t
 - `data/processed/` — preprocessed data ready for training.
 - `models/saved_weights/` — model checkpoints and weights.
 
+The `My_preprocessing` pipeline defaults to a reproducible, patient-level 80/20
+train/test split (seed `42`) before preprocessing. Its outputs are stored under
+`data/processed/train/` and `data/processed/test/`. Adjust
+`create_train_test_split`, `test_fraction`, and `split_seed` in
+`My_preprocessing/settings/main_settings.py` to change this behavior.
+
 The contents of these directories are ignored by Git. Do not store patient data or other sensitive information in a public repository.
 
 ## Google Colab

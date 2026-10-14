@@ -37,6 +37,9 @@ class test_settings:
         self.target_spacing=(0.8, 0.8, 3.5)
         self.reference_channel = 't2'
         self.save_intermediate_steps = False
+        self.create_train_test_split = True
+        self.test_fraction = 0.2
+        self.split_seed = 42
 
     def get_setting_dictionary(self):
         return {
@@ -50,6 +53,9 @@ class test_settings:
             'target_spacing': self.target_spacing,
             'reference_channel': self.reference_channel,
             'save_intermediate_steps': self.save_intermediate_steps,
+            'create_train_test_split': self.create_train_test_split,
+            'test_fraction': self.test_fraction,
+            'split_seed': self.split_seed,
             'z_score_channels_to_normalize': self.z_score_channels_to_normalize,
             'min_max_channels_to_normalize': self.max_min_channels_to_normalize,
             'mask_channel': self.mask_channel
