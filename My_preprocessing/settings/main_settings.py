@@ -36,6 +36,7 @@ class test_settings:
         self.crop_size = (160,160,24)
         self.target_spacing=(0.8, 0.8, 3.5)
         self.reference_channel = 't2'
+        self.save_intermediate_steps = False
 
     def get_setting_dictionary(self):
         return {
@@ -48,6 +49,7 @@ class test_settings:
             'crop_size': self.crop_size,
             'target_spacing': self.target_spacing,
             'reference_channel': self.reference_channel,
+            'save_intermediate_steps': self.save_intermediate_steps,
             'z_score_channels_to_normalize': self.z_score_channels_to_normalize,
             'min_max_channels_to_normalize': self.max_min_channels_to_normalize,
             'mask_channel': self.mask_channel
