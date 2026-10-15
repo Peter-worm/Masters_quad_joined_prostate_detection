@@ -69,6 +69,7 @@ class test_settings:
             'z_score_channels_to_normalize': self.z_score_channels_to_normalize,
             'min_max_channels_to_normalize': self.max_min_channels_to_normalize,
             'mask_channel': self.mask_channel,
+            'preprocessed_data_path': self.preprocessed_data_path,
             'preprocessed_archive_path': self.preprocessed_archive_path,
             'raw_data_archive': self.raw_data_archive,
         }
