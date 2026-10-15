@@ -4,7 +4,7 @@ from core.helper import transform_step_list_to_dictioanry
 class test_settings:
     def __init__(self):
         if 'google.colab' in sys.modules:
-            self.original_data_folder = '/content/drive/MyDrive/MGR_dataset_correct' 
+            self.original_data_folder = '/content/dataset/MGR_dataset_correct' 
             self.preprocessed_data_path = '/content/drive/MyDrive/Master_Thesis/Masters_quad_joined_prostate_detection/data/processed'
         else:
             self.original_data_folder = '/home/robakp/Exeriments1/prostate_lesion_detection/rjozwiak-MGR_dataset_correct/MGR_dataset_correct'
