@@ -1,14 +1,18 @@
-import sys
+import os
 from core.helper import transform_step_list_to_dictioanry
 
 class test_settings:
     def __init__(self):
-        if 'google.colab' in sys.modules:
+        if 'COLAB_RELEASE_TAG' in os.environ:
+            self.raw_data_archive = '/content/drive/MyDrive/Master_Thesis/Datasets/MGR_dataset_correct.zip'
             self.original_data_folder = '/content/dataset/MGR_dataset_correct' 
-            self.preprocessed_data_path = '/content/drive/MyDrive/Master_Thesis/Masters_quad_joined_prostate_detection/data/processed'
+            self.preprocessed_data_path = '/content/Masters_quad_joined_prostate_detection/data/processed'
+            self.preprocessed_archive_path = '/content/drive/MyDrive/Master_Thesis/processed_archives'
         else:
+            self.raw_data_archive = None
             self.original_data_folder = '/home/robakp/Exeriments1/prostate_lesion_detection/rjozwiak-MGR_dataset_correct/MGR_dataset_correct'
             self.preprocessed_data_path = '/home/robakp/Exeriments1/separate_prostate_detection_training/data/processed'
+            self.preprocessed_archive_path = None
 
         self.target = 'lesion'
 
@@ -47,6 +51,7 @@ class test_settings:
         self.split_seed = 42
 
     def get_setting_dictionary(self):
+
         return {
             'original_data_folder': self.original_data_folder,
             'channels': self.channels,
@@ -64,5 +69,7 @@ class test_settings:
             'z_score_channels_to_normalize': self.z_score_channels_to_normalize,
             'min_max_channels_to_normalize': self.max_min_channels_to_normalize,
             'mask_channel': self.mask_channel,
-            'preprocessed_data_path': self.preprocessed_data_path
+            'preprocessed_archive_path': self.preprocessed_archive_path,
+            'raw_data_archive': self.raw_data_archive,
         }
+    
