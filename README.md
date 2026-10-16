@@ -61,4 +61,10 @@ current checkout.
 - `src/utils/` — metrics and shared utilities.
 - `notebooks/` — data exploration and training entry point.
 
+## Training progress and logs
+
+Run training with `python main.py`. Each epoch displays separate progress bars
+for training and validation batches. Timestamped epoch summaries and checkpoint
+events are written both to the console and to `logs/training.log`.
+
 Adapt the model, data format, and metrics to your specific task.

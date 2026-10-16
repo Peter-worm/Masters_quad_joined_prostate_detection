@@ -47,6 +47,8 @@ class Config:
     TEST_DIR: Path = PROCESSED_DATA_DIR / "test"
     MODELS_DIR: Path = BASE_DIR / "models"
     SAVED_WEIGHTS_DIR: Path = Path(os.environ.get("SAVED_WEIGHTS_DIR", BASE_DIR / "saved_weights")).expanduser().resolve()
+    LOG_DIR: Path = BASE_DIR / "logs"
+    TRAINING_LOG_PATH: Path = LOG_DIR / "training.log"
 
     # Preprocessing & Volumetric Parameters
     CROP_SIZE = (160, 160, 24)
@@ -64,7 +66,14 @@ class Config:
     @classmethod
     def setup_directories(cls) -> None:
         """Utility method to ensure necessary directories exist before training."""
-        for path in [cls.DATA_DIR, cls.PROCESSED_DATA_DIR, cls.TRAIN_DIR, cls.TEST_DIR, cls.SAVED_WEIGHTS_DIR]:
+        for path in [
+            cls.DATA_DIR,
+            cls.PROCESSED_DATA_DIR,
+            cls.TRAIN_DIR,
+            cls.TEST_DIR,
+            cls.SAVED_WEIGHTS_DIR,
+            cls.LOG_DIR,
+        ]:
             path.mkdir(parents=True, exist_ok=True)
 
 
