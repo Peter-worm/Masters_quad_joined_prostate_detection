@@ -113,9 +113,12 @@ def _train_fold(
         scaler = torch.cuda.amp.GradScaler(enabled=torch.cuda.is_available())
 
     best_val_dice = float("-inf")
-    checkpoint_path = (
-        config.saved_weights_dir / f"cross_validation_fold_{fold_number}.pth"
+    checkpoint_name = (
+        f"cross_validation_fold_{fold_number}.pth"
+        if config.use_cross_validation
+        else "train_validation.pth"
     )
+    checkpoint_path = config.saved_weights_dir / checkpoint_name
 
     for epoch in range(1, config.epochs + 1):
         model.train()
@@ -181,56 +184,97 @@ def train(config: ExperimentConfig | None = None) -> None:
     run_started = perf_counter()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    train_files = sorted(config.train_dir.glob("**/*.pkl"))
-    validation_files = sorted(config.validation_dir.glob("**/*.pkl"))
+    if config.use_cross_validation:
+        cv_files = sorted(config.cv_dir.glob("**/*.pkl"))
+        train_files, validation_files = [], []
+    else:
+        cv_files = []
+        train_files = sorted(config.train_dir.glob("**/*.pkl"))
+        validation_files = sorted(config.validation_dir.glob("**/*.pkl"))
     test_files = sorted(config.test_dir.glob("**/*.pkl"))
-    if not train_files or not validation_files or not test_files:
-        raise FileNotFoundError(
-            "Cross-validation requires non-empty train, validation, and test "
-            f"directories: train={config.train_dir}, validation={config.validation_dir}, "
-            f"test={config.test_dir}."
+    if not test_files:
+        raise FileNotFoundError(f"Test directory is empty: {config.test_dir}.")
+
+    if config.use_cross_validation:
+        if not cv_files:
+            raise FileNotFoundError(f"Cross-validation directory is empty: {config.cv_dir}.")
+
+        folds = create_folds(
+            [str(path) for path in cv_files],
+            n_splits=config.cross_validation_folds,
+            random_seed=config.cross_validation_seed,
+        )
+        fold_scores: list[float] = []
+        fold_checkpoints: list[Path] = []
+
+        LOGGER.info(
+            "Starting %d-fold cross-validation: device=%s, epochs=%d, "
+            "cv_samples=%d, test_samples=%d, batch_size=%d",
+            config.cross_validation_folds,
+            device,
+            config.epochs,
+            len(cv_files),
+            len(test_files),
+            config.batch_size,
         )
 
-    cv_files = train_files + validation_files
-    folds = create_folds(
-        [str(path) for path in cv_files],
-        n_splits=config.cross_validation_folds,
-        random_seed=config.cross_validation_seed,
-    )
-    fold_scores: list[float] = []
-    fold_checkpoints: list[Path] = []
+        for fold_number, validation_fold in enumerate(folds, start=1):
+            validation_set = set(validation_fold)
+            fold_train = [
+                Path(path) for path in cv_files if str(path) not in validation_set
+            ]
+            fold_validation = [Path(path) for path in validation_fold]
+            checkpoint, score = _train_fold(
+                config,
+                fold_number,
+                fold_train,
+                fold_validation,
+                device,
+            )
+            fold_checkpoints.append(checkpoint)
+            fold_scores.append(score)
+            LOGGER.info("Fold %d complete | best_val_dice=%.4f", fold_number, score)
 
-    LOGGER.info(
-        "Starting %d-fold cross-validation: device=%s, epochs=%d, "
-        "cv_samples=%d, test_samples=%d, batch_size=%d",
-        config.cross_validation_folds,
-        device,
-        config.epochs,
-        len(cv_files),
-        len(test_files),
-        config.batch_size,
-    )
-
-    for fold_number, validation_fold in enumerate(folds, start=1):
-        validation_set = set(validation_fold)
-        fold_train = [Path(path) for path in cv_files if str(path) not in validation_set]
-        fold_validation = [Path(path) for path in validation_fold]
-        checkpoint, score = _train_fold(
+        mean_score = sum(fold_scores) / len(fold_scores)
+        variance = sum((score - mean_score) ** 2 for score in fold_scores) / len(fold_scores)
+        std_score = variance**0.5
+        best_fold_index = max(range(len(fold_scores)), key=fold_scores.__getitem__)
+        best_checkpoint = fold_checkpoints[best_fold_index]
+        evaluation_description = (
+            "Cross-validation complete | fold_val_dice_mean=%.4f | "
+            "fold_val_dice_std=%.4f | best_fold=%d"
+        )
+        evaluation_values: tuple[object, ...] = (
+            mean_score,
+            std_score,
+            best_fold_index + 1,
+        )
+    else:
+        if not train_files or not validation_files:
+            raise FileNotFoundError(
+                "Training requires non-empty train and validation directories: "
+                f"train={config.train_dir}, validation={config.validation_dir}."
+            )
+        LOGGER.info(
+            "Starting train/validation training: device=%s, epochs=%d, "
+            "train_samples=%d, validation_samples=%d, test_samples=%d, batch_size=%d",
+            device,
+            config.epochs,
+            len(train_files),
+            len(validation_files),
+            len(test_files),
+            config.batch_size,
+        )
+        best_checkpoint, best_val_dice = _train_fold(
             config,
-            fold_number,
-            fold_train,
-            fold_validation,
+            1,
+            train_files,
+            validation_files,
             device,
         )
-        fold_checkpoints.append(checkpoint)
-        fold_scores.append(score)
-        LOGGER.info("Fold %d complete | best_val_dice=%.4f", fold_number, score)
+        evaluation_description = "Train/validation training complete | val_dice=%.4f"
+        evaluation_values = (best_val_dice,)
 
-    mean_score = sum(fold_scores) / len(fold_scores)
-    variance = sum((score - mean_score) ** 2 for score in fold_scores) / len(fold_scores)
-    std_score = variance**0.5
-    best_fold_index = max(range(len(fold_scores)), key=fold_scores.__getitem__)
-    best_checkpoint = fold_checkpoints[best_fold_index]
     model = _make_model(config, device)
     model.load_state_dict(torch.load(best_checkpoint, map_location=device))
     test_loader = DataLoader(
@@ -247,15 +291,11 @@ def train(config: ExperimentConfig | None = None) -> None:
         device,
         "Final evaluation [test]",
     )
-    final_checkpoint = config.saved_weights_dir / "best_prostate_unet3d.pth"
-    torch.save(model.state_dict(), final_checkpoint)
+    torch.save(model.state_dict(), config.saved_weights_dir / "best_prostate_unet3d.pth")
     LOGGER.info(
-        "Cross-validation complete | fold_val_dice_mean=%.4f | "
-        "fold_val_dice_std=%.4f | best_fold=%d | test_loss=%.4f | test_dice=%.4f | "
+        f"{evaluation_description} | test_loss=%.4f | test_dice=%.4f | "
         "duration=%.1fs",
-        mean_score,
-        std_score,
-        best_fold_index + 1,
+        *evaluation_values,
         test_loss,
         test_dice,
         perf_counter() - run_started,
