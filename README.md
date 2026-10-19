@@ -68,4 +68,12 @@ Run training with `python main.py`. Each epoch displays separate progress bars
 for training and validation batches. Timestamped epoch summaries and checkpoint
 events are written both to the console and to `logs/training.log`.
 
+Training runs five-fold patient-level cross-validation by default. The `train`
+and `validation` samples form the cross-validation pool; the `test` split is
+held out and evaluated only after all folds finish. Fold checkpoints are saved
+under `saved_weights/cross_validation_fold_<n>.pth`, and the best fold is copied
+to `saved_weights/best_prostate_unet3d.pth`. Configure
+`cross_validation_folds` and `cross_validation_seed` in
+`src/config.py` to change this behavior.
+
 Adapt the model, data format, and metrics to your specific task.

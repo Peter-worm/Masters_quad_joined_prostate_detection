@@ -52,6 +52,8 @@ class ExperimentConfig:
     epochs: int = 60
     lr: float = 2e-4
     num_workers: int = 2 if IN_COLAB else 4
+    cross_validation_folds: int = 5
+    cross_validation_seed: int = 42
 
     def __post_init__(self) -> None:
         self.base_dir = self.base_dir.expanduser().resolve()
