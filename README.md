@@ -31,12 +31,27 @@ The contents of these directories are ignored by Git. Do not store patient data 
 
 ## Google Colab
 
-1. Place the project directory on Google Drive at `MyDrive/ai_project`.
-2. Open `notebooks/02_colab_train.ipynb` in Colab.
-3. Run the cell that mounts Drive and verify `PROJECT_DIR`.
-4. Install dependencies from `requirements.txt` and select a GPU runtime.
+The Colab workflow is split into two notebooks:
 
-Set `AI_PROJECT_DIR` to specify a different project directory. `src/config.py` detects Colab and defaults to `/content/drive/MyDrive/ai_project`.
+1. Open `notebooks/colab/01_preprocessing.ipynb`.
+2. Store `MGR_dataset_correct.zip` at
+   `MyDrive/Master_Thesis/Datasets/`.
+3. Run the preprocessing notebook. It keeps source code and raw data in
+   Colab's local storage, then writes `processed_train.tar.gz` and
+   `processed_test.tar.gz` to
+   `MyDrive/Master_Thesis/processed_archives/`.
+4. Open `notebooks/colab/02_train.ipynb`. It extracts those archives into
+   local Colab storage and saves checkpoints to
+   `MyDrive/Master_Thesis/training_checkpoints/`.
+
+The processed archives are kept separately so the training notebook can
+restore the train and test splits without rerunning preprocessing.
+
+Both notebooks include an explicit **Optional: update the local checkout**
+cell. Run it after pushing code changes to GitHub and before importing project
+modules. It uses `git pull --ff-only`, so it will stop instead of overwriting
+local changes. Set `UPDATE_REPOSITORY = False` when you want to keep the
+current checkout.
 
 ## Code Layout
 
@@ -45,5 +60,11 @@ Set `AI_PROJECT_DIR` to specify a different project directory. `src/config.py` d
 - `src/models/` — model architectures and training loop.
 - `src/utils/` — metrics and shared utilities.
 - `notebooks/` — data exploration and training entry point.
+
+## Training progress and logs
+
+Run training with `python main.py`. Each epoch displays separate progress bars
+for training and validation batches. Timestamped epoch summaries and checkpoint
+events are written both to the console and to `logs/training.log`.
 
 Adapt the model, data format, and metrics to your specific task.
