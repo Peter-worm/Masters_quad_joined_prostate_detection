@@ -14,14 +14,25 @@ class PatientTrainTestSplitTests(unittest.TestCase):
     def test_split_is_reproducible_disjoint_and_80_20(self):
         patient_ids = [f"patient-{index}" for index in range(10)]
 
-        train_ids, test_ids = split_patient_ids(patient_ids)
-        repeated_train_ids, repeated_test_ids = split_patient_ids(patient_ids)
+        train_ids, validation_ids, test_ids = split_patient_ids(patient_ids)
+        repeated_train_ids, repeated_validation_ids, repeated_test_ids = split_patient_ids(
+            patient_ids
+        )
 
-        self.assertEqual((train_ids, test_ids), (repeated_train_ids, repeated_test_ids))
+        self.assertEqual(
+            (train_ids, validation_ids, test_ids),
+            (repeated_train_ids, repeated_validation_ids, repeated_test_ids),
+        )
         self.assertEqual(len(train_ids), 8)
-        self.assertEqual(len(test_ids), 2)
+        self.assertEqual(len(validation_ids), 1)
+        self.assertEqual(len(test_ids), 1)
+        self.assertTrue(set(train_ids).isdisjoint(validation_ids))
         self.assertTrue(set(train_ids).isdisjoint(test_ids))
-        self.assertEqual(set(train_ids) | set(test_ids), set(patient_ids))
+        self.assertTrue(set(validation_ids).isdisjoint(test_ids))
+        self.assertEqual(
+            set(train_ids) | set(validation_ids) | set(test_ids),
+            set(patient_ids),
+        )
 
     def test_pipeline_writes_preprocessed_patients_to_separate_split_folders(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -46,7 +57,8 @@ class PatientTrainTestSplitTests(unittest.TestCase):
                 "original_data_folder": str(source_dir),
                 "channels": {"t2": "t2"},
                 "save_intermediate_steps": False,
-                "create_train_test_split": True,
+                "create_train_validation_test_split": True,
+                "validation_fraction": 0.2,
                 "test_fraction": 0.2,
                 "split_seed": 42,
                 "preprocessing_steps_list": steps,
@@ -56,14 +68,22 @@ class PatientTrainTestSplitTests(unittest.TestCase):
             run_preprocessing_pipeline(settings, file_manager)
 
             train_dir = output_dir / "train" / "1_raw"
+            validation_dir = output_dir / "validation" / "1_raw"
             test_dir = output_dir / "test" / "1_raw"
             train_output_ids = {path.stem for path in train_dir.glob("*.pkl")}
+            validation_output_ids = {path.stem for path in validation_dir.glob("*.pkl")}
             test_output_ids = {path.stem for path in test_dir.glob("*.pkl")}
 
-            self.assertEqual(len(train_output_ids), 4)
+            self.assertEqual(len(train_output_ids), 3)
+            self.assertEqual(len(validation_output_ids), 1)
             self.assertEqual(len(test_output_ids), 1)
+            self.assertTrue(train_output_ids.isdisjoint(validation_output_ids))
             self.assertTrue(train_output_ids.isdisjoint(test_output_ids))
-            self.assertEqual(train_output_ids | test_output_ids, set(patient_ids))
+            self.assertTrue(validation_output_ids.isdisjoint(test_output_ids))
+            self.assertEqual(
+                train_output_ids | validation_output_ids | test_output_ids,
+                set(patient_ids),
+            )
 
     def test_intermediate_outputs_are_also_separated_by_split(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -88,7 +108,8 @@ class PatientTrainTestSplitTests(unittest.TestCase):
                 "original_data_folder": str(source_dir),
                 "channels": {"t2": "t2"},
                 "save_intermediate_steps": True,
-                "create_train_test_split": True,
+                "create_train_validation_test_split": True,
+                "validation_fraction": 0.2,
                 "test_fraction": 0.2,
                 "split_seed": 42,
                 "preprocessing_steps_list": steps,
@@ -97,7 +118,7 @@ class PatientTrainTestSplitTests(unittest.TestCase):
 
             run_preprocessing_pipeline(settings, file_manager)
 
-            for split in ("train", "test"):
+            for split in ("train", "validation", "test"):
                 split_root = output_dir / split
                 raw_ids = {path.stem for path in (split_root / "1_raw").glob("*.pkl")}
                 nifty_ids = {path.name for path in (split_root / "0_nifty").iterdir()}

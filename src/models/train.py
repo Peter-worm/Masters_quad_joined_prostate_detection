@@ -41,23 +41,35 @@ def train(config: ExperimentConfig | None = None) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     train_files = sorted(config.train_dir.glob("**/*.pkl"))
+    validation_files = sorted(config.validation_dir.glob("**/*.pkl"))
     test_files = sorted(config.test_dir.glob("**/*.pkl"))
 
     if not train_files:
         raise FileNotFoundError(f"No training pickle files found under {config.train_dir}. Check preprocessing output paths.")
+    if not validation_files:
+        raise FileNotFoundError(
+            f"No validation pickle files found under {config.validation_dir}. "
+            "Check preprocessing output paths."
+        )
     if not test_files:
-        raise FileNotFoundError(f"No validation pickle files found under {config.test_dir}. Check preprocessing output paths.")
+        raise FileNotFoundError(
+            f"No test pickle files found under {config.test_dir}. "
+            "Check preprocessing output paths."
+        )
 
     LOGGER.info(
-        "Starting training: device=%s, epochs=%d, train_samples=%d, validation_samples=%d, batch_size=%d",
+        "Starting training: device=%s, epochs=%d, train_samples=%d, "
+        "validation_samples=%d, test_samples=%d, batch_size=%d",
         device,
         config.epochs,
         len(train_files),
+        len(validation_files),
         len(test_files),
         config.batch_size,
     )
 
     train_ds = ProstateLesionDataset(train_files, is_train=True)
+    validation_ds = ProstateLesionDataset(validation_files, is_train=False)
     test_ds = ProstateLesionDataset(test_files, is_train=False)
 
     train_loader = DataLoader(
@@ -65,6 +77,13 @@ def train(config: ExperimentConfig | None = None) -> None:
         batch_size=config.batch_size,
         shuffle=True,
         num_workers=config.num_workers,
+        pin_memory=torch.cuda.is_available(),
+    )
+    validation_loader = DataLoader(
+        validation_ds,
+        batch_size=config.batch_size,
+        shuffle=False,
+        num_workers=max(1, config.num_workers // 2),
         pin_memory=torch.cuda.is_available(),
     )
     test_loader = DataLoader(
@@ -90,7 +109,7 @@ def train(config: ExperimentConfig | None = None) -> None:
     except AttributeError:
         scaler = torch.cuda.amp.GradScaler(enabled=torch.cuda.is_available())
 
-    best_val_dice = 0.0
+    best_val_dice = float("-inf")
 
     def autocast_context():
         if torch.cuda.is_available():
@@ -133,7 +152,7 @@ def train(config: ExperimentConfig | None = None) -> None:
 
         with torch.no_grad():
             validation_progress = tqdm(
-                test_loader,
+                validation_loader,
                 desc=f"Epoch {epoch:02d}/{config.epochs} [validation]",
                 unit="batch",
             )
@@ -147,8 +166,8 @@ def train(config: ExperimentConfig | None = None) -> None:
                 val_dice += calculate_dice_score(outputs, targets).item() * inputs.size(0)
                 validation_progress.set_postfix(loss=f"{loss.item():.4f}")
 
-        val_loss /= len(test_loader.dataset)
-        val_dice /= len(test_loader.dataset)
+        val_loss /= len(validation_loader.dataset)
+        val_dice /= len(validation_loader.dataset)
 
         LOGGER.info(
             "Epoch %02d/%d | train_loss=%.4f | val_loss=%.4f | val_dice=%.4f | "
@@ -168,9 +187,38 @@ def train(config: ExperimentConfig | None = None) -> None:
             torch.save(model.state_dict(), save_path)
             LOGGER.info("Saved checkpoint: %s (val_dice=%.4f)", save_path, best_val_dice)
 
+    best_checkpoint = config.saved_weights_dir / "best_prostate_unet3d.pth"
+    model.load_state_dict(torch.load(best_checkpoint, map_location=device))
+    model.eval()
+    test_loss, test_dice = 0.0, 0.0
+
+    with torch.no_grad():
+        test_progress = tqdm(
+            test_loader,
+            desc="Final evaluation [test]",
+            unit="batch",
+        )
+        for inputs, targets in test_progress:
+            inputs, targets = inputs.to(device), targets.to(device)
+            with autocast_context():
+                outputs = model(inputs)
+                loss = criterion(outputs, targets)
+
+            test_loss += loss.item() * inputs.size(0)
+            test_dice += calculate_dice_score(outputs, targets).item() * inputs.size(0)
+            test_progress.set_postfix(loss=f"{loss.item():.4f}")
+
+    test_loss /= len(test_loader.dataset)
+    test_dice /= len(test_loader.dataset)
     LOGGER.info(
-        "Training complete in %.1fs | best_val_dice=%.4f | log_file=%s",
+        "Final test evaluation | test_loss=%.4f | test_dice=%.4f",
+        test_loss,
+        test_dice,
+    )
+    LOGGER.info(
+        "Training complete in %.1fs | best_val_dice=%.4f | test_dice=%.4f | log_file=%s",
         perf_counter() - run_started,
         best_val_dice,
+        test_dice,
         config.training_log_path,
     )

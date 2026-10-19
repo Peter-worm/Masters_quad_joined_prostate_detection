@@ -35,6 +35,7 @@ class ExperimentConfig:
     data_dir: Path = field(init=False)
     processed_data_dir: Path = field(init=False)
     train_dir: Path = field(init=False)
+    validation_dir: Path = field(init=False)
     test_dir: Path = field(init=False)
     models_dir: Path = field(init=False)
     saved_weights_dir: Path = field(init=False)
@@ -69,6 +70,7 @@ class ExperimentConfig:
         self.data_dir = self.base_dir / "data"
         self.processed_data_dir = self.data_dir / "processed"
         self.train_dir = self.processed_data_dir / "train"
+        self.validation_dir = self.processed_data_dir / "validation"
         self.test_dir = self.processed_data_dir / "test"
         self.models_dir = self.base_dir / "models"
         self.saved_weights_dir = Path(
@@ -82,6 +84,7 @@ class ExperimentConfig:
             self.data_dir,
             self.processed_data_dir,
             self.train_dir,
+            self.validation_dir,
             self.test_dir,
             self.models_dir,
             self.saved_weights_dir,

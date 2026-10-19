@@ -25,7 +25,9 @@ def run_preprocessing_pipeline(
     preprocessing_steps = settings["preprocessing_steps_list"]
     channels = settings["channels"]
     save_intermediate_steps = settings.get("save_intermediate_steps", True)
-    create_train_test_split = settings.get("create_train_test_split", True)
+    create_train_validation_test_split = settings.get(
+        "create_train_validation_test_split", True
+    )
 
     if len(preprocessing_steps) < 2:
         raise ValueError("The preprocessing steps must include a start step and at least one transform.")
@@ -75,19 +77,23 @@ def run_preprocessing_pipeline(
     else:
         patients = patient_filter
 
-    if create_train_test_split:
-        train_patients, test_patients = split_patient_ids(
+    if create_train_validation_test_split:
+        train_patients, validation_patients, test_patients = split_patient_ids(
             patients,
-            test_fraction=settings.get("test_fraction", 0.2),
+            validation_fraction=settings.get("validation_fraction", 0.1),
+            test_fraction=settings.get("test_fraction", 0.1),
             random_seed=settings.get("split_seed", 42),
         )
         patient_groups = {
             "train": train_patients,
+            "validation": validation_patients,
             "test": test_patients,
         }
         print(
-            f"Patient split: train={len(train_patients)}, test={len(test_patients)} "
-            f"(test_fraction={settings.get('test_fraction', 0.2)}, "
+            f"Patient split: train={len(train_patients)}, "
+            f"validation={len(validation_patients)}, test={len(test_patients)} "
+            f"(validation_fraction={settings.get('validation_fraction', 0.1)}, "
+            f"test_fraction={settings.get('test_fraction', 0.1)}, "
             f"seed={settings.get('split_seed', 42)})"
         )
     else:

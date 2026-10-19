@@ -21,10 +21,11 @@ For a PyTorch installation tailored to your GPU, use the installer selector on t
 - `data/processed/` — preprocessed data ready for training.
 - `models/saved_weights/` — model checkpoints and weights.
 
-The `My_preprocessing` pipeline defaults to a reproducible, patient-level 80/20
-train/test split (seed `42`) before preprocessing. Its outputs are stored under
-`data/processed/train/` and `data/processed/test/`. Adjust
-`create_train_test_split`, `test_fraction`, and `split_seed` in
+The `My_preprocessing` pipeline defaults to reproducible, patient-level 80/10/10
+train/validation/test splits (seed `42`) before preprocessing. Its outputs are
+stored under `data/processed/train/`, `data/processed/validation/`, and
+`data/processed/test/`. Adjust `create_train_validation_test_split`,
+`validation_fraction`, `test_fraction`, and `split_seed` in
 `My_preprocessing/settings/main_settings.py` to change this behavior.
 
 The contents of these directories are ignored by Git. Do not store patient data or other sensitive information in a public repository.
@@ -45,7 +46,7 @@ The Colab workflow is split into two notebooks:
    `MyDrive/Master_Thesis/training_checkpoints/`.
 
 The processed archives are kept separately so the training notebook can
-restore the train and test splits without rerunning preprocessing.
+restore the train, validation, and test splits without rerunning preprocessing.
 
 Both notebooks include an explicit **Optional: update the local checkout**
 cell. Run it after pushing code changes to GitHub and before importing project
