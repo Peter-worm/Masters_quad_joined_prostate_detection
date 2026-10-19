@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from src.config import ExperimentConfig
 from src.data.dataset import ProstateLesionDataset
 from src.models.training_routines import evaluate, make_model, train_fold
-from src.utils.cross_validation import create_folds
+from src.utils.cross_validation import create_folds, split_train_validation
 from src.utils.metrics import FocalDiceLoss
 
 
@@ -41,22 +41,29 @@ def train(config: ExperimentConfig | None = None) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if config.use_cross_validation:
-        cv_files = sorted(config.cv_dir.glob("**/*.pkl"))
+        train_val_files = sorted(config.train_val_dir.glob("**/*.pkl"))
         train_files, validation_files = [], []
     else:
-        cv_files = []
-        train_files = sorted(config.train_dir.glob("**/*.pkl"))
-        validation_files = sorted(config.validation_dir.glob("**/*.pkl"))
+        train_val_files = sorted(config.train_val_dir.glob("**/*.pkl"))
+        train_files, validation_files = split_train_validation(
+            [str(path) for path in train_val_files],
+            validation_fraction=config.validation_fraction,
+            random_seed=config.cross_validation_seed,
+        )
+        train_files = [Path(path) for path in train_files]
+        validation_files = [Path(path) for path in validation_files]
     test_files = sorted(config.test_dir.glob("**/*.pkl"))
     if not test_files:
         raise FileNotFoundError(f"Test directory is empty: {config.test_dir}.")
 
     if config.use_cross_validation:
-        if not cv_files:
-            raise FileNotFoundError(f"Cross-validation directory is empty: {config.cv_dir}.")
+        if not train_val_files:
+            raise FileNotFoundError(
+                f"Train/validation directory is empty: {config.train_val_dir}."
+            )
 
         folds = create_folds(
-            [str(path) for path in cv_files],
+            [str(path) for path in train_val_files],
             n_splits=config.cross_validation_folds,
             random_seed=config.cross_validation_seed,
         )
@@ -69,7 +76,7 @@ def train(config: ExperimentConfig | None = None) -> None:
             config.cross_validation_folds,
             device,
             config.epochs,
-            len(cv_files),
+            len(train_val_files),
             len(test_files),
             config.batch_size,
         )
@@ -109,7 +116,7 @@ def train(config: ExperimentConfig | None = None) -> None:
         if not train_files or not validation_files:
             raise FileNotFoundError(
                 "Training requires non-empty train and validation directories: "
-                f"train={config.train_dir}, validation={config.validation_dir}."
+                f"train/validation pool={config.train_val_dir}."
             )
         LOGGER.info(
             "Starting train/validation training: device=%s, epochs=%d, "

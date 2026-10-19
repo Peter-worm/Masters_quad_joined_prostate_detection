@@ -1,6 +1,6 @@
 import unittest
 
-from src.utils.cross_validation import create_folds
+from src.utils.cross_validation import create_folds, split_train_validation
 
 
 class CrossValidationTests(unittest.TestCase):
@@ -27,6 +27,16 @@ class CrossValidationTests(unittest.TestCase):
 
         self.assertEqual(len(folds), 5)
         self.assertEqual(sorted(len(fold) for fold in folds), [1, 1, 1, 1, 2])
+
+    def test_train_validation_split_is_reproducible_and_complete(self):
+        items = [f"patient-{index}" for index in range(10)]
+
+        train, validation = split_train_validation(items, validation_fraction=0.2)
+
+        self.assertEqual(len(train), 8)
+        self.assertEqual(len(validation), 2)
+        self.assertTrue(set(train).isdisjoint(validation))
+        self.assertEqual(set(train) | set(validation), set(items))
 
 
 if __name__ == "__main__":

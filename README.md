@@ -21,11 +21,11 @@ For a PyTorch installation tailored to your GPU, use the installer selector on t
 - `data/processed/` — preprocessed data ready for training.
 - `models/saved_weights/` — model checkpoints and weights.
 
-The `My_preprocessing` pipeline defaults to reproducible, patient-level 80/10/10
-train/validation/test splits (seed `42`) before preprocessing. Its outputs are
-stored under `data/processed/train/`, `data/processed/validation/`, and
-`data/processed/test/`. Adjust `create_train_validation_test_split`,
-`validation_fraction`, `test_fraction`, and `split_seed` in
+The preprocessing pipeline creates a reproducible, patient-level held-out test
+split (seed `42`) before preprocessing. Its outputs are stored under
+`data/processed/train_val/` and `data/processed/test/`. Training creates an
+ordinary train/validation split or cross-validation folds from `train_val/`.
+Adjust `validation_fraction`, `test_fraction`, and `split_seed` in
 `My_preprocessing/settings/main_settings.py` to change this behavior.
 
 The contents of these directories are ignored by Git. Do not store patient data or other sensitive information in a public repository.
@@ -38,7 +38,7 @@ The Colab workflow is split into two notebooks:
 2. Store `MGR_dataset_correct.zip` at
    `MyDrive/Master_Thesis/Datasets/`.
 3. Run the preprocessing notebook. It keeps source code and raw data in
-   Colab's local storage, then writes `processed_train.tar.gz` and
+   Colab's local storage, then writes `processed_train_val.tar.gz` and
    `processed_test.tar.gz` to
    `MyDrive/Master_Thesis/processed_archives/`.
 4. Open `notebooks/colab/02_train.ipynb`. It extracts those archives into

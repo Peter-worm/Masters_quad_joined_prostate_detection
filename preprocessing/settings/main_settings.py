@@ -46,8 +46,6 @@ class test_settings:
         self.target_spacing=(0.8, 0.8, 3.5)
         self.reference_channel = 't2'
         self.save_intermediate_steps = False
-        self.create_train_validation_test_split = True
-        self.use_cross_validation = True
         self.validation_fraction = 0.1
         self.test_fraction = 0.1
         self.split_seed = 42
@@ -65,8 +63,6 @@ class test_settings:
             'target_spacing': self.target_spacing,
             'reference_channel': self.reference_channel,
             'save_intermediate_steps': self.save_intermediate_steps,
-            'create_train_validation_test_split': self.create_train_validation_test_split,
-            'use_cross_validation': self.use_cross_validation,
             'validation_fraction': self.validation_fraction,
             'test_fraction': self.test_fraction,
             'split_seed': self.split_seed,

@@ -25,10 +25,6 @@ def run_preprocessing_pipeline(
     preprocessing_steps = settings["preprocessing_steps_list"]
     channels = settings["channels"]
     save_intermediate_steps = settings.get("save_intermediate_steps", True)
-    create_train_validation_test_split = settings.get(
-        "create_train_validation_test_split", True
-    )
-    use_cross_validation = settings.get("use_cross_validation", False)
 
     if len(preprocessing_steps) < 2:
         raise ValueError("The preprocessing steps must include a start step and at least one transform.")
@@ -78,41 +74,25 @@ def run_preprocessing_pipeline(
     else:
         patients = patient_filter
 
-    if create_train_validation_test_split:
+    if patient_filter is not None:
+        patient_groups = {"": patients}
+    else:
         train_patients, validation_patients, test_patients = split_patient_ids(
             patients,
             validation_fraction=settings.get("validation_fraction", 0.1),
             test_fraction=settings.get("test_fraction", 0.1),
             random_seed=settings.get("split_seed", 42),
         )
-        if use_cross_validation:
-            patient_groups = {
-                "cv": train_patients + validation_patients,
-                "test": test_patients,
-            }
-            print(
-                f"Patient split: cv={len(train_patients) + len(validation_patients)}, "
-                f"test={len(test_patients)} "
-                f"(validation_fraction={settings.get('validation_fraction', 0.1)} "
-                "is merged into cv, "
-                f"test_fraction={settings.get('test_fraction', 0.1)}, "
-                f"seed={settings.get('split_seed', 42)})"
-            )
-        else:
-            patient_groups = {
-                "train": train_patients,
-                "validation": validation_patients,
-                "test": test_patients,
-            }
-            print(
-                f"Patient split: train={len(train_patients)}, "
-                f"validation={len(validation_patients)}, test={len(test_patients)} "
-                f"(validation_fraction={settings.get('validation_fraction', 0.1)}, "
-                f"test_fraction={settings.get('test_fraction', 0.1)}, "
-                f"seed={settings.get('split_seed', 42)})"
-            )
-    else:
-        patient_groups = {"": patients}
+        patient_groups = {
+            "train_val": train_patients + validation_patients,
+            "test": test_patients,
+        }
+        print(
+            f"Patient split: train_val={len(train_patients) + len(validation_patients)}, "
+            f"test={len(test_patients)} "
+            f"(test_fraction={settings.get('test_fraction', 0.1)}, "
+            f"seed={settings.get('split_seed', 42)})"
+        )
 
     for split_name, split_patients in patient_groups.items():
         if split_name:

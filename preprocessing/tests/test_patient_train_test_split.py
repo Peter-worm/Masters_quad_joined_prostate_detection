@@ -34,7 +34,7 @@ class PatientTrainTestSplitTests(unittest.TestCase):
             set(patient_ids),
         )
 
-    def test_pipeline_writes_preprocessed_patients_to_separate_split_folders(self):
+    def test_pipeline_writes_train_val_and_test_folders(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             source_dir = root / "source"
@@ -67,25 +67,20 @@ class PatientTrainTestSplitTests(unittest.TestCase):
 
             run_preprocessing_pipeline(settings, file_manager)
 
-            train_dir = output_dir / "train" / "1_raw"
-            validation_dir = output_dir / "validation" / "1_raw"
+            train_val_dir = output_dir / "train_val" / "1_raw"
             test_dir = output_dir / "test" / "1_raw"
-            train_output_ids = {path.stem for path in train_dir.glob("*.pkl")}
-            validation_output_ids = {path.stem for path in validation_dir.glob("*.pkl")}
+            train_val_output_ids = {path.stem for path in train_val_dir.glob("*.pkl")}
             test_output_ids = {path.stem for path in test_dir.glob("*.pkl")}
 
-            self.assertEqual(len(train_output_ids), 3)
-            self.assertEqual(len(validation_output_ids), 1)
+            self.assertEqual(len(train_val_output_ids), 4)
             self.assertEqual(len(test_output_ids), 1)
-            self.assertTrue(train_output_ids.isdisjoint(validation_output_ids))
-            self.assertTrue(train_output_ids.isdisjoint(test_output_ids))
-            self.assertTrue(validation_output_ids.isdisjoint(test_output_ids))
+            self.assertTrue(train_val_output_ids.isdisjoint(test_output_ids))
             self.assertEqual(
-                train_output_ids | validation_output_ids | test_output_ids,
+                train_val_output_ids | test_output_ids,
                 set(patient_ids),
             )
 
-    def test_intermediate_outputs_are_also_separated_by_split(self):
+    def test_intermediate_outputs_are_also_separated_by_holdout(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             source_dir = root / "source"
@@ -118,7 +113,7 @@ class PatientTrainTestSplitTests(unittest.TestCase):
 
             run_preprocessing_pipeline(settings, file_manager)
 
-            for split in ("train", "validation", "test"):
+            for split in ("train_val", "test"):
                 split_root = output_dir / split
                 raw_ids = {path.stem for path in (split_root / "1_raw").glob("*.pkl")}
                 nifty_ids = {path.name for path in (split_root / "0_nifty").iterdir()}
