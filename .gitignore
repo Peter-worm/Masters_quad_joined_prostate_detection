@@ -9,6 +9,10 @@
 /models/**
 !/models/saved_weights/
 !/models/saved_weights/.gitkeep
+/saved_weights/*.pth
+
+# Training logs
+/logs/*.log
 
 # Python environments and generated files
 .venv/
