@@ -84,7 +84,7 @@ def train(config: ExperimentConfig | None = None) -> None:
         for fold_number, validation_fold in enumerate(folds, start=1):
             validation_set = set(validation_fold)
             fold_train = [
-                Path(path) for path in cv_files if str(path) not in validation_set
+                Path(path) for path in train_val_files if str(path) not in validation_set
             ]
             fold_validation = [Path(path) for path in validation_fold]
             checkpoint, score = train_fold(
