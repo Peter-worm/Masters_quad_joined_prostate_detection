@@ -81,6 +81,7 @@ class ExperimentConfig:
         self.log_dir = self.base_dir / "logs"
         self.training_log_path = self.log_dir / "training.log"
 
+    # creation of necessary directories if they don't exist 
     def setup_directories(self) -> None:
         split_directories = (self.train_val_dir, self.test_dir)
         for path in (

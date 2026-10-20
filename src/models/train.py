@@ -40,11 +40,10 @@ def train(config: ExperimentConfig | None = None) -> None:
     run_started = perf_counter()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    train_val_files = sorted(config.train_val_dir.glob("**/*.pkl"))
     if config.use_cross_validation:
-        train_val_files = sorted(config.train_val_dir.glob("**/*.pkl"))
         train_files, validation_files = [], []
     else:
-        train_val_files = sorted(config.train_val_dir.glob("**/*.pkl"))
         train_files, validation_files = split_train_validation(
             [str(path) for path in train_val_files],
             validation_fraction=config.validation_fraction,
