@@ -1,18 +1,32 @@
 import logging
-from contextlib import nullcontext
+from dataclasses import dataclass
+from pathlib import Path
 from time import perf_counter
 
 import torch
-from tqdm import tqdm
 from torch.utils.data import DataLoader
 
 from src.config import ExperimentConfig
 from src.data.dataset import ProstateLesionDataset
-from src.models.architectures import AnisotropicUNet3D
-from src.utils.metrics import FocalDiceLoss, calculate_dice_score
+from src.models.training_routines import (
+    evaluate,
+    evaluate_ensemble,
+    make_model,
+    train_fold,
+)
+from src.utils.cross_validation import create_folds, split_train_validation
+from src.utils.metrics import FocalDiceLoss
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class TrainingResult:
+    best_checkpoint: Path
+    fold_checkpoints: list[Path]
+    evaluation_description: str
+    evaluation_values: tuple[object, ...]
 
 
 def _configure_logging(config: ExperimentConfig) -> None:
@@ -33,144 +47,221 @@ def _configure_logging(config: ExperimentConfig) -> None:
     LOGGER.propagate = False
 
 
-def train(config: ExperimentConfig | None = None) -> None:
-    config = config or ExperimentConfig()
-    config.setup_directories()
-    _configure_logging(config)
-    run_started = perf_counter()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    train_files = sorted(config.train_dir.glob("**/*.pkl"))
+def _load_data_files(
+    config: ExperimentConfig,
+) -> tuple[list[Path], list[Path], list[Path]]:
+    train_val_files = sorted(config.train_val_dir.glob("**/*.pkl"))
     test_files = sorted(config.test_dir.glob("**/*.pkl"))
-
-    if not train_files:
-        raise FileNotFoundError(f"No training pickle files found under {config.train_dir}. Check preprocessing output paths.")
     if not test_files:
-        raise FileNotFoundError(f"No validation pickle files found under {config.test_dir}. Check preprocessing output paths.")
+        raise FileNotFoundError(f"Test directory is empty: {config.test_dir}.")
+    if config.use_cross_validation:
+        return train_val_files, [], test_files
+
+    train_files, validation_files = split_train_validation(
+        [str(path) for path in train_val_files],
+        validation_fraction=config.validation_fraction,
+        random_seed=config.cross_validation_seed,
+    )
+    return (
+        [Path(path) for path in train_files],
+        [Path(path) for path in validation_files],
+        test_files,
+    )
+
+
+def _train_cross_validation(
+    config: ExperimentConfig,
+    train_val_files: list[Path],
+    test_files: list[Path],
+    device: torch.device,
+) -> TrainingResult:
+    if not train_val_files:
+        raise FileNotFoundError(
+            f"Train/validation directory is empty: {config.train_val_dir}."
+        )
+
+    folds = create_folds(
+        [str(path) for path in train_val_files],
+        n_splits=config.cross_validation_folds,
+        random_seed=config.cross_validation_seed,
+    )
+    fold_scores: list[float] = []
+    fold_checkpoints: list[Path] = []
 
     LOGGER.info(
-        "Starting training: device=%s, epochs=%d, train_samples=%d, validation_samples=%d, batch_size=%d",
+        "Starting %d-fold cross-validation: device=%s, epochs=%d, "
+        "cv_samples=%d, test_samples=%d, batch_size=%d",
+        config.cross_validation_folds,
         device,
         config.epochs,
-        len(train_files),
+        len(train_val_files),
         len(test_files),
         config.batch_size,
     )
 
-    train_ds = ProstateLesionDataset(train_files, is_train=True)
-    test_ds = ProstateLesionDataset(test_files, is_train=False)
+    for fold_number, validation_fold in enumerate(folds, start=1):
+        validation_set = set(validation_fold)
+        fold_train = [
+            Path(path) for path in train_val_files if str(path) not in validation_set
+        ]
+        fold_validation = [Path(path) for path in validation_fold]
+        checkpoint, score = train_fold(
+            config,
+            fold_number,
+            fold_train,
+            fold_validation,
+            device,
+        )
+        fold_checkpoints.append(checkpoint)
+        fold_scores.append(score)
+        LOGGER.info("Fold %d complete | best_val_dice=%.4f", fold_number, score)
 
-    train_loader = DataLoader(
-        train_ds,
-        batch_size=config.batch_size,
-        shuffle=True,
-        num_workers=config.num_workers,
-        pin_memory=torch.cuda.is_available(),
+    mean_score = sum(fold_scores) / len(fold_scores)
+    variance = sum((score - mean_score) ** 2 for score in fold_scores) / len(fold_scores)
+    best_fold_index = max(range(len(fold_scores)), key=fold_scores.__getitem__)
+    return TrainingResult(
+        best_checkpoint=fold_checkpoints[best_fold_index],
+        fold_checkpoints=fold_checkpoints,
+        evaluation_description=(
+            "Cross-validation complete | fold_val_dice_mean=%.4f | "
+            "fold_val_dice_std=%.4f | best_fold=%d"
+        ),
+        evaluation_values=(
+            mean_score,
+            variance**0.5,
+            best_fold_index + 1,
+        ),
     )
-    test_loader = DataLoader(
-        test_ds,
+
+
+def _train_single_split(
+    config: ExperimentConfig,
+    train_files: list[Path],
+    validation_files: list[Path],
+    test_files: list[Path],
+    device: torch.device,
+) -> TrainingResult:
+    if not train_files or not validation_files:
+        raise FileNotFoundError(
+            "Training requires non-empty train and validation directories: "
+            f"train/validation pool={config.train_val_dir}."
+        )
+    LOGGER.info(
+        "Starting train/validation training: device=%s, epochs=%d, "
+        "train_samples=%d, validation_samples=%d, test_samples=%d, batch_size=%d",
+        device,
+        config.epochs,
+        len(train_files),
+        len(validation_files),
+        len(test_files),
+        config.batch_size,
+    )
+    best_checkpoint, best_val_dice = train_fold(
+        config,
+        1,
+        train_files,
+        validation_files,
+        device,
+    )
+    return TrainingResult(
+        best_checkpoint=best_checkpoint,
+        fold_checkpoints=[],
+        evaluation_description="Train/validation training complete | val_dice=%.4f",
+        evaluation_values=(best_val_dice,),
+    )
+
+
+def _create_test_loader(config: ExperimentConfig, test_files: list[Path]) -> DataLoader:
+    return DataLoader(
+        ProstateLesionDataset(test_files, is_train=False),
         batch_size=config.batch_size,
         shuffle=False,
         num_workers=max(1, config.num_workers // 2),
         pin_memory=torch.cuda.is_available(),
     )
 
-    model = AnisotropicUNet3D(
-        in_channels=config.in_channels,
-        out_channels=config.out_channels,
-        base_filters=config.base_filters,
-    ).to(device)
 
-    criterion = FocalDiceLoss()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs, eta_min=1e-6)
+def _evaluate_test_set(
+    config: ExperimentConfig,
+    result: TrainingResult,
+    test_loader: DataLoader,
+    device: torch.device,
+) -> tuple[float, float]:
+    if config.use_cross_validation_ensemble:
+        ensemble_models = []
+        ensemble_state_dicts = []
+        for checkpoint in result.fold_checkpoints:
+            ensemble_model = make_model(config, device)
+            state_dict = torch.load(checkpoint, map_location=device)
+            ensemble_model.load_state_dict(state_dict)
+            ensemble_models.append(ensemble_model)
+            ensemble_state_dicts.append(state_dict)
 
-    try:
-        scaler = torch.amp.GradScaler("cuda", enabled=torch.cuda.is_available())
-    except AttributeError:
-        scaler = torch.cuda.amp.GradScaler(enabled=torch.cuda.is_available())
-
-    best_val_dice = 0.0
-
-    def autocast_context():
-        if torch.cuda.is_available():
-            try:
-                return torch.autocast(device_type="cuda")
-            except TypeError:
-                return torch.cuda.amp.autocast()
-        return nullcontext()
-
-    for epoch in range(1, config.epochs + 1):
-        epoch_started = perf_counter()
-        model.train()
-        train_loss = 0.0
-
-        train_progress = tqdm(
-            train_loader,
-            desc=f"Epoch {epoch:02d}/{config.epochs} [train]",
-            unit="batch",
+        test_metrics = evaluate_ensemble(
+            ensemble_models,
+            test_loader,
+            FocalDiceLoss(),
+            device,
+            "Final ensemble evaluation [test]",
         )
-        for inputs, targets in train_progress:
-            inputs, targets = inputs.to(device), targets.to(device)
-            optimizer.zero_grad()
-
-            with autocast_context():
-                outputs = model(inputs)
-                loss = criterion(outputs, targets)
-
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-
-            train_loss += loss.item() * inputs.size(0)
-            train_progress.set_postfix(loss=f"{loss.item():.4f}")
-
-        train_loss /= len(train_loader.dataset)
-        scheduler.step()
-
-        model.eval()
-        val_loss, val_dice = 0.0, 0.0
-
-        with torch.no_grad():
-            validation_progress = tqdm(
-                test_loader,
-                desc=f"Epoch {epoch:02d}/{config.epochs} [validation]",
-                unit="batch",
-            )
-            for inputs, targets in validation_progress:
-                inputs, targets = inputs.to(device), targets.to(device)
-                with autocast_context():
-                    outputs = model(inputs)
-                    loss = criterion(outputs, targets)
-
-                val_loss += loss.item() * inputs.size(0)
-                val_dice += calculate_dice_score(outputs, targets).item() * inputs.size(0)
-                validation_progress.set_postfix(loss=f"{loss.item():.4f}")
-
-        val_loss /= len(test_loader.dataset)
-        val_dice /= len(test_loader.dataset)
-
+        torch.save(
+            {
+                "model_state_dicts": ensemble_state_dicts,
+                "fold_checkpoints": [str(path) for path in result.fold_checkpoints],
+            },
+            config.saved_weights_dir / "cross_validation_ensemble.pth",
+        )
         LOGGER.info(
-            "Epoch %02d/%d | train_loss=%.4f | val_loss=%.4f | val_dice=%.4f | "
-            "learning_rate=%.2e | duration=%.1fs",
-            epoch,
-            config.epochs,
-            train_loss,
-            val_loss,
-            val_dice,
-            optimizer.param_groups[0]["lr"],
-            perf_counter() - epoch_started,
+            "Saved cross-validation ensemble: %s",
+            config.saved_weights_dir / "cross_validation_ensemble.pth",
+        )
+        return test_metrics
+    else:
+        model = make_model(config, device)
+        model.load_state_dict(torch.load(result.best_checkpoint, map_location=device))
+        return evaluate(
+            model,
+            test_loader,
+            FocalDiceLoss(),
+            device,
+            "Final evaluation [test]",
         )
 
-        if val_dice > best_val_dice:
-            best_val_dice = val_dice
-            save_path = config.saved_weights_dir / "best_prostate_unet3d.pth"
-            torch.save(model.state_dict(), save_path)
-            LOGGER.info("Saved checkpoint: %s (val_dice=%.4f)", save_path, best_val_dice)
 
+def train(config: ExperimentConfig | None = None) -> None:
+    config = config or ExperimentConfig()
+    if config.use_cross_validation_ensemble and not config.use_cross_validation:
+        raise ValueError(
+            "Cross-validation ensembles require use_cross_validation=True."
+        )
+    config.setup_directories()
+    _configure_logging(config)
+    run_started = perf_counter()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    train_val_files, validation_files, test_files = _load_data_files(config)
+    if config.use_cross_validation:
+        result = _train_cross_validation(config, train_val_files, test_files, device)
+    else:
+        result = _train_single_split(
+            config,
+            train_val_files,
+            validation_files,
+            test_files,
+            device,
+        )
+    test_loader = _create_test_loader(config, test_files)
+    test_loss, test_dice = _evaluate_test_set(config, result, test_loader, device)
+
+    torch.save(
+        torch.load(result.best_checkpoint, map_location=device),
+        config.saved_weights_dir / "best_prostate_unet3d.pth",
+    )
     LOGGER.info(
-        "Training complete in %.1fs | best_val_dice=%.4f | log_file=%s",
+        f"{result.evaluation_description} | test_loss=%.4f | test_dice=%.4f | "
+        "duration=%.1fs",
+        *result.evaluation_values,
+        test_loss,
+        test_dice,
         perf_counter() - run_started,
-        best_val_dice,
-        config.training_log_path,
     )

@@ -34,7 +34,7 @@ class ExperimentConfig:
 
     data_dir: Path = field(init=False)
     processed_data_dir: Path = field(init=False)
-    train_dir: Path = field(init=False)
+    train_val_dir: Path = field(init=False)
     test_dir: Path = field(init=False)
     models_dir: Path = field(init=False)
     saved_weights_dir: Path = field(init=False)
@@ -51,6 +51,11 @@ class ExperimentConfig:
     epochs: int = 60
     lr: float = 2e-4
     num_workers: int = 2 if IN_COLAB else 4
+    cross_validation_folds: int = 5
+    cross_validation_seed: int = 42
+    use_cross_validation: bool = True
+    use_cross_validation_ensemble: bool = False
+    validation_fraction: float = 0.1
 
     def __post_init__(self) -> None:
         self.base_dir = self.base_dir.expanduser().resolve()
@@ -68,7 +73,7 @@ class ExperimentConfig:
 
         self.data_dir = self.base_dir / "data"
         self.processed_data_dir = self.data_dir / "processed"
-        self.train_dir = self.processed_data_dir / "train"
+        self.train_val_dir = self.processed_data_dir / "train_val"
         self.test_dir = self.processed_data_dir / "test"
         self.models_dir = self.base_dir / "models"
         self.saved_weights_dir = Path(
@@ -77,12 +82,13 @@ class ExperimentConfig:
         self.log_dir = self.base_dir / "logs"
         self.training_log_path = self.log_dir / "training.log"
 
+    # creation of necessary directories if they don't exist 
     def setup_directories(self) -> None:
+        split_directories = (self.train_val_dir, self.test_dir)
         for path in (
             self.data_dir,
             self.processed_data_dir,
-            self.train_dir,
-            self.test_dir,
+            *split_directories,
             self.models_dir,
             self.saved_weights_dir,
             self.log_dir,

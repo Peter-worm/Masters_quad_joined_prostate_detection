@@ -1,0 +1,21 @@
+# --- Primary Libraries ---
+numpy
+pandas
+scipy
+scikit-learn
+scikit-image
+torch
+tqdm
+ImageIO
+pillow
+simpleitk
+tifffile
+fsspec>=2023.1.0,<=2026.2.0
+matplotlib
+plotly
+contourpy
+fonttools
+decorator>=4.0.2,<5.0
+Jinja2
+narwhals
+networkx

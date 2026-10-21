@@ -21,10 +21,11 @@ For a PyTorch installation tailored to your GPU, use the installer selector on t
 - `data/processed/` — preprocessed data ready for training.
 - `models/saved_weights/` — model checkpoints and weights.
 
-The `My_preprocessing` pipeline defaults to a reproducible, patient-level 80/20
-train/test split (seed `42`) before preprocessing. Its outputs are stored under
-`data/processed/train/` and `data/processed/test/`. Adjust
-`create_train_test_split`, `test_fraction`, and `split_seed` in
+The preprocessing pipeline creates a reproducible, patient-level held-out test
+split (seed `42`) before preprocessing. Its outputs are stored under
+`data/processed/train_val/` and `data/processed/test/`. Training creates an
+ordinary train/validation split or cross-validation folds from `train_val/`.
+Adjust `validation_fraction`, `test_fraction`, and `split_seed` in
 `My_preprocessing/settings/main_settings.py` to change this behavior.
 
 The contents of these directories are ignored by Git. Do not store patient data or other sensitive information in a public repository.
@@ -37,7 +38,7 @@ The Colab workflow is split into two notebooks:
 2. Store `MGR_dataset_correct.zip` at
    `MyDrive/Master_Thesis/Datasets/`.
 3. Run the preprocessing notebook. It keeps source code and raw data in
-   Colab's local storage, then writes `processed_train.tar.gz` and
+   Colab's local storage, then writes `processed_train_val.tar.gz` and
    `processed_test.tar.gz` to
    `MyDrive/Master_Thesis/processed_archives/`.
 4. Open `notebooks/colab/02_train.ipynb`. It extracts those archives into
@@ -45,7 +46,7 @@ The Colab workflow is split into two notebooks:
    `MyDrive/Master_Thesis/training_checkpoints/`.
 
 The processed archives are kept separately so the training notebook can
-restore the train and test splits without rerunning preprocessing.
+restore the train, validation, and test splits without rerunning preprocessing.
 
 Both notebooks include an explicit **Optional: update the local checkout**
 cell. Run it after pushing code changes to GitHub and before importing project
@@ -66,5 +67,19 @@ current checkout.
 Run training with `python main.py`. Each epoch displays separate progress bars
 for training and validation batches. Timestamped epoch summaries and checkpoint
 events are written both to the console and to `logs/training.log`.
+
+Training runs five-fold patient-level cross-validation by default. The `train`
+and `validation` samples form the cross-validation pool; the `test` split is
+held out and evaluated only after all folds finish. Fold checkpoints are saved
+under `saved_weights/cross_validation_fold_<n>.pth`, and the best fold is copied
+to `saved_weights/best_prostate_unet3d.pth`. Configure
+`cross_validation_folds` and `cross_validation_seed` in
+`src/config.py` to change this behavior.
+
+Set `use_cross_validation_ensemble = True` in `src/config.py` to evaluate the
+held-out test set using the average predictions of all fold checkpoints. The
+ensemble is saved as `saved_weights/cross_validation_ensemble.pth`; the
+single best-fold checkpoint remains available as
+`saved_weights/best_prostate_unet3d.pth`.
 
 Adapt the model, data format, and metrics to your specific task.
