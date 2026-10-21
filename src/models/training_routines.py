@@ -57,6 +57,37 @@ def evaluate(
     return loss_total / len(loader.dataset), dice_total / len(loader.dataset)
 
 
+def evaluate_ensemble(
+    models: list[torch.nn.Module],
+    loader: DataLoader,
+    criterion: FocalDiceLoss,
+    device: torch.device,
+    description: str,
+) -> tuple[float, float]:
+    if not models:
+        raise ValueError("An ensemble must contain at least one model.")
+
+    for model in models:
+        model.eval()
+
+    loss_total, dice_total = 0.0, 0.0
+    with torch.no_grad():
+        progress = tqdm(loader, desc=description, unit="batch")
+        for inputs, targets in progress:
+            inputs, targets = inputs.to(device), targets.to(device)
+            with _autocast_context():
+                outputs = torch.stack(
+                    [model(inputs) for model in models], dim=0
+                ).mean(dim=0)
+                loss = criterion(outputs, targets)
+
+            loss_total += loss.item() * inputs.size(0)
+            dice_total += calculate_dice_score(outputs, targets).item() * inputs.size(0)
+            progress.set_postfix(loss=f"{loss.item():.4f}")
+
+    return loss_total / len(loader.dataset), dice_total / len(loader.dataset)
+
+
 def train_fold(
     config: ExperimentConfig,
     fold_number: int,

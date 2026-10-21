@@ -54,6 +54,7 @@ class ExperimentConfig:
     cross_validation_folds: int = 5
     cross_validation_seed: int = 42
     use_cross_validation: bool = True
+    use_cross_validation_ensemble: bool = False
     validation_fraction: float = 0.1
 
     def __post_init__(self) -> None:

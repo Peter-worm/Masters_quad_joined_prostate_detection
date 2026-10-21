@@ -76,4 +76,10 @@ to `saved_weights/best_prostate_unet3d.pth`. Configure
 `cross_validation_folds` and `cross_validation_seed` in
 `src/config.py` to change this behavior.
 
+Set `use_cross_validation_ensemble = True` in `src/config.py` to evaluate the
+held-out test set using the average predictions of all fold checkpoints. The
+ensemble is saved as `saved_weights/cross_validation_ensemble.pth`; the
+single best-fold checkpoint remains available as
+`saved_weights/best_prostate_unet3d.pth`.
+
 Adapt the model, data format, and metrics to your specific task.
