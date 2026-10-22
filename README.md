@@ -61,6 +61,8 @@ current checkout.
 - `src/models/` — model architectures and training loop.
 - `src/utils/` — metrics and shared utilities.
 - `notebooks/` — data exploration and training entry point.
+- `notebooks/evaluate_test_set.ipynb` — post-training evaluation of an
+  existing checkpoint without retraining.
 
 ## Training progress and logs
 
@@ -82,4 +84,38 @@ ensemble is saved as `saved_weights/cross_validation_ensemble.pth`; the
 single best-fold checkpoint remains available as
 `saved_weights/best_prostate_unet3d.pth`.
 
+If you do not want the final convenience copy named
+`best_prostate_unet3d.pth`, set `save_best_checkpoint_alias = False` in
+`ExperimentConfig`. Training will still save the fold checkpoint files
+(`cross_validation_fold_<n>.pth`) and use the selected best fold for the final
+test evaluation.
+
 Adapt the model, data format, and metrics to your specific task.
+
+## Test-set evaluation artifacts
+
+After training, the default configuration evaluates each held-out test volume
+individually and writes artifacts under `evaluation/`:
+
+- `test_case_metrics.csv` — Dice, precision, recall, HD95, ASSD, volume error,
+  and false-positive/false-negative voxel counts for every test volume.
+- `patient_detection_metrics.csv` — patient-level sensitivity, specificity,
+  accuracy, and the true/false positive/negative patient counts.
+- `test_metric_distributions.png` — box plots of the per-volume metrics.
+- `volume_agreement.png` — predicted versus ground-truth lesion volume.
+- `*_views.png` — axial, coronal, and sagittal input/ground-truth/prediction/
+  overlay figures for representative test volumes.
+- `*_surface_error.png` — 3D predicted surfaces colored by distance from the
+  ground-truth surface.
+
+Surface distances are reported in millimetres using `target_spacing`. Set
+`generate_evaluation_artifacts = False` in `ExperimentConfig` to disable this
+step. The evaluator uses the selected best-fold checkpoint and the configured
+`evaluation_threshold` (default `0.5`). Select the threshold using validation
+data, not the held-out test set.
+
+The same evaluation can be run after training from
+`notebooks/evaluate_test_set.ipynb`. Set the checkpoint path, test directory,
+and output directory in the first code cell, then execute the notebook cells
+in order. This is useful when training has already completed or when comparing
+multiple saved checkpoints.

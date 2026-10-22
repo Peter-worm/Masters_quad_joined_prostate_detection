@@ -16,6 +16,7 @@ from src.models.training_routines import (
 )
 from src.utils.cross_validation import create_folds, split_train_validation
 from src.utils.metrics import FocalDiceLoss
+from src.utils.evaluation import generate_evaluation_artifacts
 
 
 LOGGER = logging.getLogger(__name__)
@@ -252,11 +253,23 @@ def train(config: ExperimentConfig | None = None) -> None:
         )
     test_loader = _create_test_loader(config, test_files)
     test_loss, test_dice = _evaluate_test_set(config, result, test_loader, device)
+    if config.generate_evaluation_artifacts:
+        generate_evaluation_artifacts(
+            config,
+            result.best_checkpoint,
+            test_files,
+            device,
+        )
 
-    torch.save(
-        torch.load(result.best_checkpoint, map_location=device),
-        config.saved_weights_dir / "best_prostate_unet3d.pth",
-    )
+    if config.save_best_checkpoint_alias:
+        torch.save(
+            torch.load(result.best_checkpoint, map_location=device),
+            config.saved_weights_dir / "best_prostate_unet3d.pth",
+        )
+        LOGGER.info(
+            "Saved best checkpoint alias: %s",
+            config.saved_weights_dir / "best_prostate_unet3d.pth",
+        )
     LOGGER.info(
         f"{result.evaluation_description} | test_loss=%.4f | test_dice=%.4f | "
         "duration=%.1fs",

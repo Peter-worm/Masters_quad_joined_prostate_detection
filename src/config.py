@@ -40,6 +40,7 @@ class ExperimentConfig:
     saved_weights_dir: Path = field(init=False)
     log_dir: Path = field(init=False)
     training_log_path: Path = field(init=False)
+    evaluation_output_dir: Path = field(init=False)
 
     crop_size: tuple[int, int, int] = (160, 160, 24)
     target_spacing: tuple[float, float, float] = (0.8, 0.8, 3.5)
@@ -51,11 +52,14 @@ class ExperimentConfig:
     epochs: int = 60
     lr: float = 2e-4
     num_workers: int = 2 if IN_COLAB else 4
-    cross_validation_folds: int = 5
+    cross_validation_folds: int = 10
     cross_validation_seed: int = 42
     use_cross_validation: bool = True
     use_cross_validation_ensemble: bool = False
     validation_fraction: float = 0.1
+    generate_evaluation_artifacts: bool = True
+    evaluation_threshold: float = 0.5
+    save_best_checkpoint_alias: bool = True
 
     def __post_init__(self) -> None:
         self.base_dir = self.base_dir.expanduser().resolve()
@@ -81,6 +85,7 @@ class ExperimentConfig:
         ).expanduser().resolve()
         self.log_dir = self.base_dir / "logs"
         self.training_log_path = self.log_dir / "training.log"
+        self.evaluation_output_dir = self.base_dir / "evaluation"
 
     # creation of necessary directories if they don't exist 
     def setup_directories(self) -> None:
@@ -92,6 +97,7 @@ class ExperimentConfig:
             self.models_dir,
             self.saved_weights_dir,
             self.log_dir,
+            self.evaluation_output_dir,
         ):
             path.mkdir(parents=True, exist_ok=True)
 
