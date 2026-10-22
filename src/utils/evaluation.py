@@ -289,6 +289,139 @@ def show_prediction_viewer(
     render()
 
 
+def show_prediction_3d_viewer(
+    config: ExperimentConfig,
+    checkpoint: Path,
+    test_files: Iterable[Path],
+    device: torch.device,
+) -> None:
+    """Display ground-truth and predicted lesions as interactive 3D meshes."""
+    try:
+        import ipywidgets as widgets
+        import plotly.graph_objects as go
+        from IPython.display import display
+        from preprocessing.core.visualization_lib import mask_to_plotly_mesh
+    except ImportError as error:
+        raise ImportError(
+            "The 3D viewer requires ipywidgets, plotly, and scikit-image."
+        ) from error
+
+    model = _load_model(config, checkpoint, device)
+    dataset = ProstateLesionDataset(list(test_files), is_train=False)
+    cases: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for index, file_path in enumerate(dataset.pickle_files):
+        inputs, target_tensor = dataset[index]
+        target = target_tensor[0].numpy().astype(bool)
+        prediction = _prediction(model, inputs, device, config.evaluation_threshold)
+        cases[Path(file_path).stem] = (target, prediction)
+
+    if not cases:
+        raise ValueError("No test volumes were provided to show_prediction_3d_viewer.")
+
+    case_dropdown = widgets.Dropdown(
+        options=sorted(cases),
+        description="Case:",
+        layout=widgets.Layout(width="300px"),
+    )
+    axial_scale = widgets.FloatSlider(
+        value=1.0,
+        min=1.0,
+        max=5.0,
+        step=0.25,
+        description="Axial scale:",
+        continuous_update=False,
+        readout_format=".2f",
+        layout=widgets.Layout(width="400px"),
+    )
+    show_ground_truth = widgets.Checkbox(
+        value=True,
+        description="Ground truth",
+        indent=False,
+    )
+    show_prediction = widgets.Checkbox(
+        value=True,
+        description="Prediction",
+        indent=False,
+    )
+    output = widgets.Output()
+
+    def render(*_change: object) -> None:
+        target, prediction = cases[case_dropdown.value]
+        axis_scale = (axial_scale.value, 1.0, 1.0)
+        array_spacing = (
+            config.target_spacing[2],
+            config.target_spacing[1],
+            config.target_spacing[0],
+        )
+        candidate_traces = (
+            (
+                mask_to_plotly_mesh(
+                    target,
+                    array_spacing,
+                    color="green",
+                    name="Ground truth",
+                    opacity=0.55,
+                    axis_scale=axis_scale,
+                ),
+                show_ground_truth.value,
+            ),
+            (
+                mask_to_plotly_mesh(
+                    prediction,
+                    array_spacing,
+                    color="red",
+                    name="Prediction",
+                    opacity=0.55,
+                    axis_scale=axis_scale,
+                ),
+                show_prediction.value,
+            ),
+        )
+        traces = [
+            trace
+            for trace, visible in candidate_traces
+            if trace is not None and visible
+        ]
+        figure = go.Figure(data=traces)
+        figure.update_layout(
+            title=f"{case_dropdown.value} | 3D lesion comparison",
+            width=900,
+            height=700,
+            scene=dict(
+                aspectmode="data",
+                xaxis_title="Sagittal (mm)",
+                yaxis_title="Coronal (mm)",
+                zaxis_title="Axial (mm)",
+            ),
+            legend=dict(
+                title="Lesion masks",
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1,
+            ),
+        )
+        with output:
+            output.clear_output(wait=True)
+            display(figure)
+
+    case_dropdown.observe(render, names="value")
+    axial_scale.observe(render, names="value")
+    show_ground_truth.observe(render, names="value")
+    show_prediction.observe(render, names="value")
+    display(
+        widgets.VBox(
+            [
+                widgets.HBox([case_dropdown, axial_scale]),
+                widgets.HBox([show_ground_truth, show_prediction]),
+                output,
+            ]
+        )
+    )
+    render()
+
+
 def _save_case_figure(
     image: np.ndarray,
     target: np.ndarray,

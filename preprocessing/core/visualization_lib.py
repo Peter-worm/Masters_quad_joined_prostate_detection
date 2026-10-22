@@ -4,6 +4,7 @@ from IPython.display import display
 from .file_manager import preprocess_file_manager
 import numpy as np
 import SimpleITK as sitk
+from skimage.measure import marching_cubes
 
 def do_nothing_normalizer(file):
     return file
@@ -212,3 +213,73 @@ def show_transformation(dictionary):
         plt.axis('off')
 
     plt.show()
+
+
+def mask_to_plotly_mesh(
+    mask,
+    spacing,
+    color='red',
+    name='Mask',
+    opacity=0.5,
+    axis_scale=(1.0, 1.0, 1.0),
+):
+    """Convert a 3D binary mask to a Plotly Mesh3d trace."""
+    import plotly.graph_objects as go
+
+    mask = np.asarray(mask).astype(bool)
+    if not mask.any():
+        return None
+
+    vertices, faces, _, _ = marching_cubes(
+        mask.astype(np.float32),
+        level=0.5,
+        spacing=spacing,
+    )
+    return go.Mesh3d(
+        x=vertices[:, 2],
+        y=vertices[:, 1],
+        z=vertices[:, 0] * axis_scale[0],
+        i=faces[:, 0],
+        j=faces[:, 1],
+        k=faces[:, 2],
+        color=color,
+        opacity=opacity,
+        name=name,
+        hoverinfo='name',
+    )
+
+
+def show_masks_3d(
+    masks,
+    spacing,
+    title='3D mask viewer',
+    width=900,
+    height=900,
+    axis_scale=(1.0, 1.0, 1.0),
+):
+    """Display one or more 3D masks as an interactive Plotly figure."""
+    import plotly.graph_objects as go
+
+    traces = [
+        trace
+        for name, mask, color in masks
+        if (
+            trace := mask_to_plotly_mesh(
+                mask,
+                spacing,
+                color=color,
+                name=name,
+                axis_scale=axis_scale,
+            )
+        )
+        is not None
+    ]
+    figure = go.Figure(data=traces)
+    figure.update_layout(
+        title=title,
+        width=width,
+        height=height,
+        scene=dict(aspectmode='data'),
+    )
+    figure.show()
+    return figure

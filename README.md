@@ -143,3 +143,25 @@ green, prediction is red, and overlapping regions are yellow. Predictions are
 computed once when the viewer is created, so changing slices or backgrounds
 does not rerun the model. Enable **Focus on overlay** to hide the other panels
 and enlarge the combined overlay for closer inspection.
+
+For a rotatable 3D comparison based on the existing Plotly single-3D display,
+run:
+
+```python
+from src.utils.evaluation import show_prediction_3d_viewer
+
+show_prediction_3d_viewer(
+    config=config,
+    checkpoint=CHECKPOINT_PATH,
+    test_files=TEST_FILES,
+    device=device,
+)
+```
+
+This displays the ground-truth lesion as a green surface and the predicted
+lesion as a red surface. Use the Plotly controls to rotate, zoom, and inspect
+the two meshes. Cases can be changed from the dropdown. Use the
+**Ground truth** and **Prediction** checkboxes, or click the corresponding
+legend entries, to hide or show either layer. Use **Axial scale** to visually
+exaggerate the low-resolution axial direction when the lesion is hard to see;
+this changes display geometry only, not masks or metrics.
