@@ -136,9 +136,10 @@ show_prediction_viewer(
 )
 ```
 
-The viewer provides case, orientation, and slice controls. It displays the
-input T2 slice, ground truth, prediction, and an overlay. Ground truth is
+The viewer provides case, orientation, background-channel, and slice controls.
+The available backgrounds are ADC, DWI, T2, and anatomy. It displays the
+selected background, ground truth, prediction, and an overlay. Ground truth is
 green, prediction is red, and overlapping regions are yellow. Predictions are
-computed once when the viewer is created, so changing slices does not rerun
-the model. Enable **Focus on overlay** to hide the other panels and enlarge
-the combined overlay for closer inspection.
+computed once when the viewer is created, so changing slices or backgrounds
+does not rerun the model. Enable **Focus on overlay** to hide the other panels
+and enlarge the combined overlay for closer inspection.

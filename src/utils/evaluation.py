@@ -164,14 +164,14 @@ def show_prediction_viewer(
 
     model = _load_model(config, checkpoint, device)
     dataset = ProstateLesionDataset(list(test_files), is_train=False)
-    cases: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, float]]] = {}
+    cases: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict[str, float]]] = {}
     for index, file_path in enumerate(dataset.pickle_files):
         inputs, target_tensor = dataset[index]
         target = target_tensor[0].numpy().astype(bool)
         prediction = _prediction(model, inputs, device, config.evaluation_threshold)
         metrics = segmentation_metrics(prediction, target, config.target_spacing)
         cases[Path(file_path).stem] = (
-            inputs[2].numpy(),
+            inputs.numpy(),
             target,
             prediction,
             metrics,
@@ -181,6 +181,7 @@ def show_prediction_viewer(
         raise ValueError("No test volumes were provided to show_prediction_viewer.")
 
     orientations = {"Axial": 0, "Coronal": 1, "Sagittal": 2}
+    background_channels = {"ADC": 0, "DWI": 1, "T2": 2, "Anatomy": 3}
     patient_dropdown = widgets.Dropdown(
         options=sorted(cases),
         description="Case:",
@@ -191,10 +192,18 @@ def show_prediction_viewer(
         value="Axial",
         description="View:",
     )
+    background_dropdown = widgets.Dropdown(
+        options=list(background_channels),
+        value="T2",
+        description="Background:",
+    )
     slice_slider = widgets.IntSlider(
         value=0,
         min=0,
-        max=cases[patient_dropdown.value][0].shape[0] - 1,
+        max=cases[patient_dropdown.value][0][
+            background_channels[background_dropdown.value]
+        ].shape[0]
+        - 1,
         step=1,
         description="Slice:",
         continuous_update=False,
@@ -209,12 +218,14 @@ def show_prediction_viewer(
 
     def update_slice_range(*_change: object) -> None:
         axis = orientations[orientation_dropdown.value]
-        slice_slider.max = cases[patient_dropdown.value][0].shape[axis] - 1
+        channel = background_channels[background_dropdown.value]
+        slice_slider.max = cases[patient_dropdown.value][0][channel].shape[axis] - 1
         slice_slider.value = min(slice_slider.value, slice_slider.max)
 
     def render(*_change: object) -> None:
-        image, target, prediction, metrics = cases[patient_dropdown.value]
+        inputs, target, prediction, metrics = cases[patient_dropdown.value]
         axis = orientations[orientation_dropdown.value]
+        image = inputs[background_channels[background_dropdown.value]]
         image_slice = np.take(image, slice_slider.value, axis=axis)
         target_slice = np.take(target, slice_slider.value, axis=axis)
         prediction_slice = np.take(prediction, slice_slider.value, axis=axis)
@@ -238,7 +249,13 @@ def show_prediction_viewer(
                 axes[3].imshow(_normalize_for_display(image_slice), cmap="gray")
                 axes[3].imshow(overlay, alpha=0.55)
                 for axis_plot, title in zip(
-                    axes, ("Input T2", "Ground truth", "Prediction", "Overlay")
+                    axes,
+                    (
+                        f"Input {background_dropdown.value}",
+                        "Ground truth",
+                        "Prediction",
+                        "Overlay",
+                    ),
                 ):
                     axis_plot.set_title(title)
                     axis_plot.axis("off")
@@ -254,13 +271,16 @@ def show_prediction_viewer(
     orientation_dropdown.observe(update_slice_range, names="value")
     patient_dropdown.observe(render, names="value")
     orientation_dropdown.observe(render, names="value")
+    background_dropdown.observe(render, names="value")
     slice_slider.observe(render, names="value")
     overlay_focus.observe(render, names="value")
     update_slice_range()
     display(
         widgets.VBox(
             [
-                widgets.HBox([patient_dropdown, orientation_dropdown, overlay_focus]),
+                widgets.HBox(
+                    [patient_dropdown, orientation_dropdown, background_dropdown, overlay_focus]
+                ),
                 slice_slider,
                 output,
             ]
