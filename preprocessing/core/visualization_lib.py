@@ -160,7 +160,7 @@ def multiple_steps_viewer(
             continuous_update=False
         )
 
-    # 🔥 Dynamic update per patient/channel
+    # Dynamic update per patient/channel
     def update_sliders(*args):
         patient = patient_dropdown.value
         channel = channel_dropdown.value

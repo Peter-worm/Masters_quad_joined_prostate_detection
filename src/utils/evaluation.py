@@ -133,6 +133,142 @@ def _prediction(
     return (torch.sigmoid(logits[0, 0]).cpu().numpy() > threshold)
 
 
+def _normalize_for_display(image: np.ndarray) -> np.ndarray:
+    low, high = np.percentile(image, (1, 99))
+    if high <= low:
+        return np.zeros_like(image, dtype=float)
+    return np.clip((image - low) / (high - low), 0.0, 1.0)
+
+
+def show_prediction_viewer(
+    config: ExperimentConfig,
+    checkpoint: Path,
+    test_files: Iterable[Path],
+    device: torch.device,
+) -> None:
+    """Display an interactive multi-slice viewer for test-set predictions.
+
+    The model is run once when the viewer is created. Each displayed slice
+    contains the input T2 image, ground truth, prediction, and an overlay.
+    Ground truth is green and prediction is red; overlapping regions appear
+    yellow.
+    """
+    try:
+        import ipywidgets as widgets
+        from IPython.display import display
+    except ImportError as error:
+        raise ImportError(
+            "The interactive viewer requires ipywidgets and IPython. "
+            "Install the notebook dependencies before calling show_prediction_viewer."
+        ) from error
+
+    model = _load_model(config, checkpoint, device)
+    dataset = ProstateLesionDataset(list(test_files), is_train=False)
+    cases: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, float]]] = {}
+    for index, file_path in enumerate(dataset.pickle_files):
+        inputs, target_tensor = dataset[index]
+        target = target_tensor[0].numpy().astype(bool)
+        prediction = _prediction(model, inputs, device, config.evaluation_threshold)
+        metrics = segmentation_metrics(prediction, target, config.target_spacing)
+        cases[Path(file_path).stem] = (
+            inputs[2].numpy(),
+            target,
+            prediction,
+            metrics,
+        )
+
+    if not cases:
+        raise ValueError("No test volumes were provided to show_prediction_viewer.")
+
+    orientations = {"Axial": 0, "Coronal": 1, "Sagittal": 2}
+    patient_dropdown = widgets.Dropdown(
+        options=sorted(cases),
+        description="Case:",
+        layout=widgets.Layout(width="300px"),
+    )
+    orientation_dropdown = widgets.Dropdown(
+        options=list(orientations),
+        value="Axial",
+        description="View:",
+    )
+    slice_slider = widgets.IntSlider(
+        value=0,
+        min=0,
+        max=cases[patient_dropdown.value][0].shape[0] - 1,
+        step=1,
+        description="Slice:",
+        continuous_update=False,
+        layout=widgets.Layout(width="450px"),
+    )
+    overlay_focus = widgets.Checkbox(
+        value=False,
+        description="Focus on overlay",
+        indent=False,
+    )
+    output = widgets.Output()
+
+    def update_slice_range(*_change: object) -> None:
+        axis = orientations[orientation_dropdown.value]
+        slice_slider.max = cases[patient_dropdown.value][0].shape[axis] - 1
+        slice_slider.value = min(slice_slider.value, slice_slider.max)
+
+    def render(*_change: object) -> None:
+        image, target, prediction, metrics = cases[patient_dropdown.value]
+        axis = orientations[orientation_dropdown.value]
+        image_slice = np.take(image, slice_slider.value, axis=axis)
+        target_slice = np.take(target, slice_slider.value, axis=axis)
+        prediction_slice = np.take(prediction, slice_slider.value, axis=axis)
+        overlay = np.zeros((*target_slice.shape, 3), dtype=float)
+        overlay[target_slice, 1] = 1.0
+        overlay[prediction_slice, 0] = 1.0
+
+        with output:
+            output.clear_output(wait=True)
+            if overlay_focus.value:
+                figure, axis_plot = plt.subplots(figsize=(8, 8))
+                axis_plot.imshow(_normalize_for_display(image_slice), cmap="gray")
+                axis_plot.imshow(overlay, alpha=0.7)
+                axis_plot.set_title("Ground truth + prediction overlay")
+                axis_plot.axis("off")
+            else:
+                figure, axes = plt.subplots(1, 4, figsize=(16, 4))
+                axes[0].imshow(_normalize_for_display(image_slice), cmap="gray")
+                axes[1].imshow(target_slice, cmap="Greens", vmin=0, vmax=1)
+                axes[2].imshow(prediction_slice, cmap="Reds", vmin=0, vmax=1)
+                axes[3].imshow(_normalize_for_display(image_slice), cmap="gray")
+                axes[3].imshow(overlay, alpha=0.55)
+                for axis_plot, title in zip(
+                    axes, ("Input T2", "Ground truth", "Prediction", "Overlay")
+                ):
+                    axis_plot.set_title(title)
+                    axis_plot.axis("off")
+            figure.suptitle(
+                f"{patient_dropdown.value} | {orientation_dropdown.value} "
+                f"slice {slice_slider.value} | Dice {metrics['dice']:.3f}"
+            )
+            figure.tight_layout()
+            display(figure)
+            plt.close(figure)
+
+    patient_dropdown.observe(update_slice_range, names="value")
+    orientation_dropdown.observe(update_slice_range, names="value")
+    patient_dropdown.observe(render, names="value")
+    orientation_dropdown.observe(render, names="value")
+    slice_slider.observe(render, names="value")
+    overlay_focus.observe(render, names="value")
+    update_slice_range()
+    display(
+        widgets.VBox(
+            [
+                widgets.HBox([patient_dropdown, orientation_dropdown, overlay_focus]),
+                slice_slider,
+                output,
+            ]
+        )
+    )
+    render()
+
+
 def _save_case_figure(
     image: np.ndarray,
     target: np.ndarray,

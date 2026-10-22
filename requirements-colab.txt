@@ -12,6 +12,7 @@ simpleitk
 tifffile
 fsspec>=2023.1.0,<=2026.2.0
 matplotlib
+ipywidgets
 plotly
 contourpy
 fonttools

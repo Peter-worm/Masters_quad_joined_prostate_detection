@@ -119,3 +119,26 @@ The same evaluation can be run after training from
 and output directory in the first code cell, then execute the notebook cells
 in order. This is useful when training has already completed or when comparing
 multiple saved checkpoints.
+
+## Interactive prediction viewer
+
+For interactive inspection of every test slice, run the evaluation notebook
+through the evaluation cell, then run:
+
+```python
+from src.utils.evaluation import show_prediction_viewer
+
+show_prediction_viewer(
+    config=config,
+    checkpoint=CHECKPOINT_PATH,
+    test_files=TEST_FILES,
+    device=device,
+)
+```
+
+The viewer provides case, orientation, and slice controls. It displays the
+input T2 slice, ground truth, prediction, and an overlay. Ground truth is
+green, prediction is red, and overlapping regions are yellow. Predictions are
+computed once when the viewer is created, so changing slices does not rerun
+the model. Enable **Focus on overlay** to hide the other panels and enlarge
+the combined overlay for closer inspection.
